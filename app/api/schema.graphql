@@ -1,0 +1,59 @@
+type Query {
+  user(id: ID!): User
+  orders(status: OrderStatus, limit: Int = 20, offset: Int = 0): [Order!]!
+}
+
+type Mutation {
+  createOrder(input: NewOrder!): Order!
+}
+
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  orders(limit: Int = 10): [Order!]!
+}
+
+type Order {
+  id: ID!
+  status: OrderStatus!
+  createdAt: String!
+  user: User!
+  items: [OrderItem!]!
+}
+
+type OrderItem {
+  id: ID!
+  quantity: Int!
+  product: Product!
+}
+
+type Product {
+  id: ID!
+  name: String!
+  price: Int!
+  category: Category!
+}
+
+type Category {
+  id: ID!
+  name: String!
+  parent: Category
+}
+
+enum OrderStatus {
+  NEW
+  PAID
+  SHIPPED
+  CANCELLED
+}
+
+input NewOrder {
+  userId: ID!
+  items: [NewItem!]!
+}
+
+input NewItem {
+  productId: ID!
+  quantity: Int!
+}

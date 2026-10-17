@@ -1,0 +1,98 @@
+services:
+  postgres:
+    image: postgres:16.4
+    environment: { POSTGRES_PASSWORD: test, POSTGRES_DB: shop }
+    cpus: "2"
+    mem_limit: 2g
+    ports: [ "5432:5432" ]
+    volumes:
+      - ../app/migrations:/docker-entrypoint-initdb.d:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d shop" ]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  app-rest:
+    build: { context: ../app, args: { CMD: rest } }
+    cpus: "2"
+    mem_limit: 2g
+    ports: [ "8443:8443", "9101:9100" ]
+    environment: &appenv
+      DB_URL: postgres://postgres:test@postgres:5432/shop
+      JWT_SECRET: ${JWT_SECRET:-thesis-secret}
+      TLS_ENABLED: ${TLS_ENABLED:-false}
+      HTTP2_ENABLED: ${HTTP2_ENABLED:-false}
+      AUTH_ENABLED: ${AUTH_ENABLED:-false}
+      VALIDATION_ENABLED: ${VALIDATION_ENABLED:-false}
+      RATELIMIT_ENABLED: ${RATELIMIT_ENABLED:-false}
+      COMPLEXITY_ENABLED: ${COMPLEXITY_ENABLED:-false}
+      RATELIMIT_RPS: ${RATELIMIT_RPS:-100}
+      RATELIMIT_BURST: ${RATELIMIT_BURST:-200}
+      MAX_BODY_BYTES: ${MAX_BODY_BYTES:-65536}
+      MAX_DEPTH: ${MAX_DEPTH:-6}
+      MAX_COST: ${MAX_COST:-400}
+      LISTEN_ADDR: ":8443"
+      METRICS_ADDR: ":9100"
+    volumes: [ "./certs:/certs:ro" ]
+    depends_on: { postgres: { condition: service_healthy } }
+    profiles: [ rest ]
+
+  app-graphql:
+    build: { context: ../app, args: { CMD: graphql } }
+    cpus: "2"
+    mem_limit: 2g
+    ports: [ "8444:8444", "9102:9100" ]
+    environment:
+      <<: *appenv
+      LISTEN_ADDR: ":8444"
+    volumes: [ "./certs:/certs:ro" ]
+    depends_on: { postgres: { condition: service_healthy } }
+    profiles: [ graphql ]
+
+  app-grpc:
+    build: { context: ../app, args: { CMD: grpc } }
+    cpus: "2"
+    mem_limit: 2g
+    ports: [ "8445:8445", "9103:9100" ]
+    environment:
+      <<: *appenv
+      LISTEN_ADDR: ":8445"
+    volumes: [ "./certs:/certs:ro" ]
+    depends_on: { postgres: { condition: service_healthy } }
+    profiles: [ grpc ]
+
+  # ---- podgląd na żywo (opcjonalny): docker compose --profile monitoring up -d  /  make monitoring ----
+  # CPU/RAM z metryk procesu aplikacji (process_*). cAdvisor pominięty: nie działa z Dockerem 29 (containerd snapshotter).
+  # Obciąża tę samą maszynę co pomiar. W przebiegach właściwych włączaj świadomie (MONITORING=1) i opisz w pracy.
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command: [ "--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=7d" ]
+    cpus: "0.5"
+    mem_limit: 512m
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    ports: [ "9090:9090" ]
+    profiles: [ monitoring ]
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    cpus: "0.5"
+    mem_limit: 512m
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/live.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: [ "3000:3000" ]
+    depends_on: [ prometheus ]
+    profiles: [ monitoring ]
+
+volumes:
+  pgdata: {}
+  promdata: {}

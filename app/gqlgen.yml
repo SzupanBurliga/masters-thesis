@@ -1,0 +1,47 @@
+schema:
+  - api/schema.graphql
+exec:
+  filename: internal/graphql/generated/generated.go
+  package: generated
+model:
+  filename: internal/graphql/model/models_gen.go
+  package: model
+resolver:
+  layout: follow-schema
+  dir: internal/graphql
+  package: graphql
+  filename_template: "{name}.resolvers.go"
+autobind:
+  - thesis/app/internal/domain
+models:
+  ID:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int64
+  Order:
+    fields:
+      status:
+        resolver: true
+      createdAt:
+        resolver: true
+      user:
+        resolver: true
+      items:
+        resolver: true
+  User:
+    fields:
+      orders:
+        resolver: true
+  Product:
+    fields:
+      price:
+        fieldName: PriceCents
+      category:
+        resolver: true
+  Category:
+    fields:
+      parent:
+        resolver: true
+  NewOrder:
+    model: thesis/app/internal/domain.NewOrder
+  NewItem:
+    model: thesis/app/internal/domain.NewItem

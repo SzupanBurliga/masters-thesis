@@ -1,0 +1,32 @@
+syntax = "proto3";
+package shop.v1;
+option go_package = "thesis/app/internal/grpcsrv/pb";
+
+service Shop {
+  rpc GetUser(GetUserRequest) returns (User);
+  rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
+  rpc GetUserWithOrders(GetUserWithOrdersRequest) returns (UserWithOrders);
+  rpc CreateOrder(CreateOrderRequest) returns (Order);
+}
+
+message GetUserRequest { int64 id = 1; }
+message User { int64 id = 1; string name = 2; string email = 3; }
+
+message ListOrdersRequest { string status = 1; int32 limit = 2; int32 offset = 3; }
+message ListOrdersResponse { repeated Order orders = 1; }
+
+message GetUserWithOrdersRequest { int64 id = 1; int32 limit = 2; }
+message UserWithOrders { int64 id = 1; string name = 2; string email = 3; repeated Order orders = 4; }
+
+message Order {
+  int64 id = 1;
+  int64 user_id = 2;
+  string status = 3;
+  string created_at = 4;
+  repeated OrderItem items = 5;
+}
+message OrderItem { int64 id = 1; int32 quantity = 2; Product product = 3; }
+message Product { int64 id = 1; string name = 2; int32 price_cents = 3; int64 category_id = 4; }
+
+message NewItem { int64 product_id = 1; int32 quantity = 2; }
+message CreateOrderRequest { int64 user_id = 1; repeated NewItem items = 2; }

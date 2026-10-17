@@ -1,0 +1,14 @@
+# Podgląd na żywo (profil `monitoring`). Dane do pracy pochodzą z k6 i CSV, nie stąd.
+global:
+  scrape_interval: 2s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: app            # działa tylko ten interfejs, który jest uruchomiony; reszta jest "down"
+    static_configs:
+      - targets: ["app-rest:9100"]
+        labels: { iface: rest }
+      - targets: ["app-graphql:9100"]
+        labels: { iface: graphql }
+      - targets: ["app-grpc:9100"]
+        labels: { iface: grpc }
