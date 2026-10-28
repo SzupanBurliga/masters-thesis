@@ -1,5 +1,11 @@
 results/local/**
 results/aws/**
+# kalibracje w results/local_*: surowe dane (duże, odtwarzalne) ignorowane, małe podsumowania wersjonowane
+results/local_*/**
+!results/local_*/*.md
+!results/local_*/config.txt
+!results/local_*/*_summary.csv
+!results/local_*/*_windows.csv
 !results/**/.gitkeep
 !results/meta/**
 

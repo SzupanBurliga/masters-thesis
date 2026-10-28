@@ -5,7 +5,10 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 ENVNAME=${1:?env}; WHICH=${2:?seria}
-REPS=${REPS:-3}
+REPS=${REPS:-3}      # A2 i B
+REPS_C=${REPS_C:-2}  # seria C (kolejność cięć p. 3: 3 -> 2)
+REPS_D=${REPS_D:-2}  # seria D
+export PG_CPUS=${PG_CPUS:-3}  # kalibracja w rates.env dotyczy Postgresa z 3 CPU
 [ -f loadtests/rates.env ] && source loadtests/rates.env
 IFACES=(rest graphql grpc)
 sat() { local v="SAT_${1^^}_${2}"; echo "${!v:-200}"; }   # domyślnie 200 RPS do czasu kalibracji
@@ -18,14 +21,12 @@ run() { # series iface op cfg rep rate  (zmienne TAG itd. w środowisku)
 }
 
 case "$WHICH" in
-  seria_a1) # nasycenie, tylko C0, 2 powtórzenia
-    for i in "${IFACES[@]}"; do for op in O1 O3; do for r in 1 2; do
-      MODE=ramp RAMP=${RAMP:-3m} WARMUP=0s DURATION=1s COOLDOWN=0s TAG="${op}_ramp" run seria_a "$i" "$op" C0 "$r" 100
-    done; done; done ;;
+  seria_a1) # A1 wykonuje loadtests/run_a1_calibration.sh (rampy 8000/4000 RPS, 3 powtórzenia, CPU/RAM Postgresa)
+    echo "A1 uruchamiaj: loadtests/run_a1_calibration.sh ${ENVNAME}" >&2; exit 2 ;;
   seria_a2) # obciążenie stałe, 70% nasycenia C0
     for i in "${IFACES[@]}"; do for op in O1 O3; do
       rate=$(( $(sat "$i" "$op") * 70 / 100 ))
-      for cfg in C0 C1 C2 C3 C4 C5; do for r in $(seq 1 "$REPS"); do
+      for cfg in C0 C2 C3 C4 C5; do for r in $(seq 1 "$REPS"); do  # C1 pominięte: TLS+JWT razem w C2
         MODE=const run seria_a "$i" "$op" "$cfg" "$r" "$rate"
       done; done
     done; done ;;
@@ -41,7 +42,7 @@ case "$WHICH" in
   seria_c) # nadmiarowe ładunki: 4 rozmiary, C0/C3/C5
     for i in "${IFACES[@]}"; do for size in 10240 102400 1048576 5242880; do
       bg=$(( $(sat "$i" O1) * 30 / 100 ))
-      for cfg in C0 C3 C5; do for r in $(seq 1 "$REPS"); do
+      for cfg in C0 C3 C5; do for r in $(seq 1 "$REPS_C"); do
         SIZE=$size BG_RATE=$bg TAG="s${size}" run seria_c "$i" O1 "$cfg" "$r" "$bg"
       done; done
     done; done ;;
@@ -52,7 +53,7 @@ case "$WHICH" in
       for lvl in ${levels//,/ }; do
         bg=$(( $(sat "$i" O1) * 30 / 100 ))
         v=$variant; [ "$v" = json ] && v=depth
-        for cfg in C0 C3 C5; do for r in $(seq 1 "$REPS"); do
+        for cfg in C0 C3 C5; do for r in $(seq 1 "$REPS_D"); do
           VARIANT=$v LEVEL=$lvl BG_RATE=$bg TAG="${variant}${lvl}" run seria_d "$i" O1 "$cfg" "$r" "$bg"
         done; done
       done

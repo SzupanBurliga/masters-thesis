@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:16.4
     environment: { POSTGRES_PASSWORD: test, POSTGRES_DB: shop }
-    cpus: "2"
+    cpus: ${PG_CPUS:-3}
     mem_limit: 2g
     ports: [ "5432:5432" ]
     volumes:
