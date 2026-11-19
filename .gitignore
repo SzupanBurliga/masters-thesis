@@ -33,3 +33,10 @@ results/pilot/**
 *.tfplan
 infra/aws/tfplan
 .terraform.lock.hcl
+# bloki run_blocks.sh: surowe dane i logi ignorowane; statusy (.tsv) i podsumowania wersjonowane
+results/pilot_*/**
+!results/pilot_*/*.csv
+!results/pilot_*/*.md
+!results/pilot_*/*.txt
+results/blocks_smoke/
+results/blocks_logs/*.log

@@ -1,0 +1,6 @@
+czas	przebieg	status	kod	czas_s	szac_s
+2026-11-19T15:00:37+01:00	blocks_smoke/seria_a/rest_O1_C0_1	POMINIĘTY_CZAS	-	-	75
+2026-11-19T15:00:37+01:00	blocks_smoke/seria_a/grpc_O1_C5_1	POMINIĘTY_CZAS	-	-	75
+2026-11-19T15:00:58+01:00	blocks_smoke/seria_a/rest_O1_C0_1	PRZERWANY	130	21	75
+2026-11-19T15:01:51+01:00	blocks_smoke/seria_a/rest_O1_C0_1	OK	0	53	75
+2026-11-19T15:02:49+01:00	blocks_smoke/seria_a/grpc_O1_C5_1	OK	0	53	75
