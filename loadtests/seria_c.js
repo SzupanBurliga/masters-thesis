@@ -1,10 +1,11 @@
-// Seria C: nadmiarowe ładunki (SIZE = rozmiar wiadomości na drucie, w bajtach) + legalne tło (O1).
-// Ten sam ładunek logiczny (zamówienie z N pozycjami) we wszystkich interfejsach, patrz lib/common.js.
+// Seria C: nadmiarowe ładunki + legalne tło (O1). SIZE = nominalny rozmiar zamówienia w JSON (bajty); wyznacza liczbę
+// pozycji N, wspólną dla wszystkich interfejsów (ta sama praca serwera). Rzeczywisty rozmiar na drucie różni się
+// formatem i jest zapisywany w metryce attack_payload_bytes (patrz lib/common.js).
 import http from "k6/http";
 import { WARMUP, DURATION, COOLDOWN, secs } from "./lib/common.js";
-import { check } from "k6";
 import { IFACE, BASE, OP, headers, legitToken, attackerToken, bigOrderRest, bigOrderGraphql, bigOrderGrpc,
-         grpcClient, grpcConnect, grpcMeta } from "./lib/common.js";
+         grpcClient, grpcConnect, grpcMeta, itemsForSize, protoSizeCreateOrder,
+         attackPayloadBytes, attackPayloadItems } from "./lib/common.js";
 import { doOp } from "./lib/ops.js";
 
 const SIZE = parseInt(__ENV.SIZE || "10240");
@@ -25,15 +26,26 @@ export const options = {
 
 export function legit() { doOp("O1", legitToken(), { who: "legit" }); }
 
+const N_ITEMS = itemsForSize(SIZE);
+let grpcBytes = null; // rozmiar wiadomości gRPC liczony raz na VU (ładunek jest stały)
+
 export function big() {
   const tags = { who: "attacker" };
   const token = attackerToken();
+  attackPayloadItems.add(N_ITEMS);
   if (IFACE === "rest") {
-    http.post(`${BASE}/orders`, bigOrderRest(SIZE), { headers: headers(token), tags });
+    const body = bigOrderRest(SIZE);
+    attackPayloadBytes.add(body.length); // ASCII: długość = bajty
+    http.post(`${BASE}/orders`, body, { headers: headers(token), tags });
   } else if (IFACE === "graphql") {
-    http.post(`${BASE}/graphql`, bigOrderGraphql(SIZE), { headers: headers(token), tags });
+    const body = bigOrderGraphql(SIZE);
+    attackPayloadBytes.add(body.length);
+    http.post(`${BASE}/graphql`, body, { headers: headers(token), tags });
   } else {
     grpcConnect();
-    grpcClient.invoke("shop.v1.Shop/CreateOrder", bigOrderGrpc(SIZE), { ...grpcMeta(token), tags });
+    const msg = bigOrderGrpc(SIZE);
+    if (grpcBytes === null) grpcBytes = protoSizeCreateOrder(msg);
+    attackPayloadBytes.add(grpcBytes);
+    grpcClient.invoke("shop.v1.Shop/CreateOrder", msg, { ...grpcMeta(token), tags });
   }
 }

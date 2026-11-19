@@ -1,6 +1,12 @@
 // Wspólne parametry i generatory dla skryptów k6 (wszystko deterministyczne: bez Math.random).
 import { SharedArray } from "k6/data";
 import grpc from "k6/net/grpc";
+import { Gauge } from "k6/metrics";
+
+// Rozmiar ładunku napastnika (seria C i D): bajty treści żądania (HTTP) albo zakodowanej wiadomości (gRPC) oraz liczba
+// pozycji zamówienia. Gauge -> w podsumowaniu k6 (summary-export) ostatnia/min/max wartość.
+export const attackPayloadBytes = new Gauge("attack_payload_bytes");
+export const attackPayloadItems = new Gauge("attack_payload_items");
 
 export const IFACE = __ENV.IFACE || "rest";   // rest | graphql | grpc
 export const OP = __ENV.OP || "O1";           // O1 | O2 | O3 | O4
@@ -92,10 +98,10 @@ export function bigLimitQuery(limit) {
 }
 
 // ---- seria C: ten sam ładunek logiczny (zamówienie z N pozycjami) w każdym interfejsie ----
-// N dobrane tak, by rozmiar wiadomości NA DRUCIE ≈ SIZE bajtów. Wszystkie interfejsy wykonują
-// N wstawień do bazy, więc różni je tylko koszt parsowania i działanie mechanizmów (limit rozmiaru,
-// długość tablicy). Ładunek jest budowany raz na VU (cache), żeby nie obciążać generatora.
-const GRPC_BYTES_PER_ITEM = 7; // protobuf: tag+len (2) + product_id (3) + quantity (2)
+// N = floor(SIZE / średni rozmiar pozycji w JSON), wspólne dla REST, GraphQL i gRPC: wszystkie interfejsy dostają
+// tę samą liczbę pozycji (ta sama praca serwera i bazy), a rozmiar na drucie różni się formatem (JSON vs protobuf).
+// Rzeczywisty rozmiar i liczbę pozycji zapisują metryki attack_payload_bytes / attack_payload_items (payloadMetrics).
+// Ładunek jest budowany raz na VU (cache), żeby nie obciążać generatora.
 const payloadCache = {};
 
 function itemsOf(n) {
@@ -104,9 +110,9 @@ function itemsOf(n) {
   return items;
 }
 
-function jsonItemsFor(bytes) {
-  const sample = JSON.stringify(itemsOf(1000)).length / 1000; // średni rozmiar pozycji w JSON
-  return itemsOf(Math.max(1, Math.floor(bytes / sample)));
+const JSON_BYTES_PER_ITEM = JSON.stringify(itemsOf(1000)).length / 1000; // średni rozmiar pozycji w JSON
+export function itemsForSize(bytes) {
+  return Math.max(1, Math.floor(bytes / JSON_BYTES_PER_ITEM));
 }
 
 function cached(key, build) {
@@ -115,18 +121,35 @@ function cached(key, build) {
 }
 
 export function bigOrderRest(bytes) {
-  return cached(`rest:${bytes}`, () => JSON.stringify({ userId: 1, items: jsonItemsFor(bytes) }));
+  return cached(`rest:${bytes}`, () => JSON.stringify({ userId: 1, items: itemsOf(itemsForSize(bytes)) }));
 }
 
 export function bigOrderGraphql(bytes) {
-  return cached(`gql:${bytes}`, () => JSON.stringify({ query: GQL.O4, variables: { in: { userId: 1, items: jsonItemsFor(bytes) } } }));
+  return cached(`gql:${bytes}`, () => JSON.stringify({ query: GQL.O4, variables: { in: { userId: 1, items: itemsOf(itemsForSize(bytes)) } } }));
 }
 
 export function bigOrderGrpc(bytes) {
   return cached(`grpc:${bytes}`, () => ({
     user_id: 1,
-    items: itemsOf(Math.max(1, Math.floor(bytes / GRPC_BYTES_PER_ITEM))).map((i) => ({ product_id: i.productId, quantity: i.quantity })),
+    items: itemsOf(itemsForSize(bytes)).map((i) => ({ product_id: i.productId, quantity: i.quantity })),
   }));
+}
+
+// Dokładny rozmiar zakodowanej wiadomości CreateOrderRequest (protobuf, proto3): k6 go nie raportuje.
+// Pola: user_id = 1 (int64, varint), items = 2 (repeated NewItem, length-delimited); NewItem: product_id = 1, quantity = 2.
+// Wartości 0 w proto3 nie są kodowane. Tagi pól < 16 zajmują 1 bajt.
+function varintLen(v) {
+  let n = 1;
+  while (v >= 128) { v = Math.floor(v / 128); n++; }
+  return n;
+}
+export function protoSizeCreateOrder(msg) {
+  let size = msg.user_id ? 1 + varintLen(msg.user_id) : 0;
+  for (const it of msg.items) {
+    const inner = (it.product_id ? 1 + varintLen(it.product_id) : 0) + (it.quantity ? 1 + varintLen(it.quantity) : 0);
+    size += 1 + varintLen(inner) + inner;
+  }
+  return size;
 }
 
 // ---- klient gRPC ----

@@ -3,7 +3,8 @@
 import http from "k6/http";
 import { WARMUP, DURATION, COOLDOWN, secs } from "./lib/common.js";
 import { IFACE, BASE, headers, legitToken, attackerToken, deepQuery, aliasQuery, bigLimitQuery, nestedJson,
-         newOrderBody, grpcClient, grpcConnect, grpcMeta } from "./lib/common.js";
+         newOrderBody, grpcClient, grpcConnect, grpcMeta, protoSizeCreateOrder,
+         attackPayloadBytes, attackPayloadItems } from "./lib/common.js";
 import { doOp } from "./lib/ops.js";
 
 const VARIANT = __ENV.VARIANT || "depth";
@@ -31,13 +32,19 @@ export function complex() {
   const id = 1 + ((__VU * 104729 + __ITER * 7919) % 10000);
   if (IFACE === "graphql") {
     const q = VARIANT === "alias" ? aliasQuery(LEVEL) : VARIANT === "limit" ? bigLimitQuery(LEVEL) : deepQuery(LEVEL);
-    http.post(`${BASE}/graphql`, JSON.stringify({ query: q, variables: { id } }), { headers: headers(token), tags });
+    const body = JSON.stringify({ query: q, variables: { id } });
+    attackPayloadBytes.add(body.length);
+    http.post(`${BASE}/graphql`, body, { headers: headers(token), tags });
   } else if (IFACE === "rest") {
     const body = VARIANT === "array" ? JSON.stringify(newOrderBody(id, LEVEL)) : nestedJson(id, LEVEL);
+    attackPayloadBytes.add(body.length);
+    attackPayloadItems.add(VARIANT === "array" ? LEVEL : 1);
     http.post(`${BASE}/orders`, body, { headers: headers(token), tags });
   } else {
     grpcConnect();
-    const items = newOrderBody(id, LEVEL).items.map((i) => ({ product_id: i.productId, quantity: i.quantity }));
-    grpcClient.invoke("shop.v1.Shop/CreateOrder", { user_id: id, items }, { ...grpcMeta(token), tags });
+    const msg = { user_id: id, items: newOrderBody(id, LEVEL).items.map((i) => ({ product_id: i.productId, quantity: i.quantity })) };
+    attackPayloadBytes.add(protoSizeCreateOrder(msg));
+    attackPayloadItems.add(LEVEL);
+    grpcClient.invoke("shop.v1.Shop/CreateOrder", msg, { ...grpcMeta(token), tags });
   }
 }
