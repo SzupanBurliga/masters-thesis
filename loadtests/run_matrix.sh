@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # run_matrix.sh <env> <seria_a1|seria_a2|seria_b|seria_c|seria_d>
-# Iteruje po macierzy serii (tryb 2 miesięcy) i POMIJA przebiegi, których plik wyniku już istnieje.
+# Iteruje po macierzy serii (tryb 2 miesięcy) i POMIJA przebiegi zakończone poprawnie (_meta.json z k6_exit 0).
 # Poziomy RPS bierze z loadtests/rates.env (plik wypełniany po wyznaczeniu nasycenia: SAT_<IFACE>_<OP>=rps).
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -14,9 +14,10 @@ IFACES=(rest graphql grpc)
 sat() { local v="SAT_${1^^}_${2}"; echo "${!v:-200}"; }   # domyślnie 200 RPS do czasu kalibracji
 run() { # series iface op cfg rep rate  (zmienne TAG itd. w środowisku)
   local series=$1 iface=$2 op=$3 cfg=$4 rep=$5 rate=$6 tag=${TAG:-$3}
-  local f="results/${ENVNAME}/${series}/${iface}_${tag}_${cfg}_${rep}.json"
-  if [ -s "$f" ]; then echo "pomijam $f"; return; fi
-  loadtests/run_experiment.sh "$ENVNAME" "$series" "$iface" "$op" "$cfg" "$rep" "$rate" || echo "BŁĄD: $f" >> results/${ENVNAME}/failed.txt
+  local f="results/${ENVNAME}/${series}/${iface}_${tag}_${cfg}_${rep}"
+  # gotowy = _meta.json z k6_exit 0; sam .json nie wystarcza (k6 zapisuje go także po przerwaniu Ctrl+C)
+  if grep -qs '"k6_exit":0' "${f}_meta.json"; then echo "pomijam $f"; return; fi
+  loadtests/run_experiment.sh "$ENVNAME" "$series" "$iface" "$op" "$cfg" "$rep" "$rate" || echo "BŁĄD: $f" >> "results/${ENVNAME}/failed.txt"
   echo "pauza ${PAUSE:-600}s (stabilizacja temperatury)"; sleep "${PAUSE:-600}"
 }
 
