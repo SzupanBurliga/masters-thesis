@@ -8,10 +8,13 @@ export function doOp(op, token, tags) {
   const id = pickId();
   const params = { headers: headers(token), tags: tags || {} };
   if (IFACE === "rest") {
+    // tag "name" grupuje adresy z identyfikatorem: bez niego k6 tworzy osobny szereg metryk dla każdego id
+    // (10 000 użytkowników -> 100-200 tys. szeregów, ostrzeżenie k6 i dodatkowe obciążenie generatora)
+    const named = (name) => ({ ...params, tags: { ...params.tags, name } });
     let r;
-    if (op === "O1") r = http.get(`${BASE}/users/${id}`, params);
+    if (op === "O1") r = http.get(`${BASE}/users/${id}`, named("GET /users/{id}"));
     else if (op === "O2") r = http.get(`${BASE}/orders?status=PAID&limit=20&offset=0`, params);
-    else if (op === "O3") r = http.get(`${BASE}/users/${id}/orders?expand=items.product&limit=10`, params);
+    else if (op === "O3") r = http.get(`${BASE}/users/${id}/orders?expand=items.product&limit=10`, named("GET /users/{id}/orders"));
     else r = http.post(`${BASE}/orders`, JSON.stringify(newOrderBody(id, 3)), params);
     return check(r, { ok: (x) => x.status === 200 || x.status === 201 });
   }
