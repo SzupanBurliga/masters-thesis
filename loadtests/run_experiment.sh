@@ -58,8 +58,20 @@ $DC --profile "$IFACE" up -d "app-${IFACE}" >/dev/null
 DB_URL=postgres://postgres:test@localhost:5432/shop ./bin/seed > "${OUT}_seed.txt"
 loadtests/wait_ready.sh "$IFACE"
 
+# Sprzątanie próbkowania przy każdym wyjściu (także Ctrl+C / kill), żeby nie zostawały pętle docker stats i vmstat.
+# Przerwany przebieg nie zapisuje _meta.json, więc run_blocks.sh uzna go za niewykonany.
+VM_PID=""
+cleanup() {
+  [ -n "$VM_PID" ] && kill "$VM_PID" 2>/dev/null
+  loadtests/export_resources.sh stop "$CTR" "${OUT}_resources.csv" 2>/dev/null || true
+}
+trap cleanup EXIT
+trap 'echo "przerwano: ${OUT}" >&2; exit 130' INT TERM
+
 # 5-8: rozgrzewka/pomiar/wystygnięcie realizuje k6 (fazy zdefiniowane w skrypcie serii)
 loadtests/export_resources.sh start "$CTR" "${OUT}_resources.csv"
+# CPU całego hosta (na laptopie host = generator k6 + kontenery), co VMSTAT_INTERVAL s, format jak w A1
+vmstat -t "${VMSTAT_INTERVAL:-5}" > "${OUT}_hostcpu.txt" & VM_PID=$!
 START=$(date -Iseconds)
 # parametry scenariuszy przekazywane jawnie (nie polegamy na dziedziczeniu środowiska)
 EXTRA=()
@@ -76,6 +88,10 @@ K6RC=$?
 set -e
 END=$(date -Iseconds)
 loadtests/export_resources.sh stop "$CTR" "${OUT}_resources.csv"
+kill "$VM_PID" 2>/dev/null; VM_PID=""
+# zajętość CPU hosta (100 - id) z vmstat; pierwsza linia danych (średnia od startu systemu) pominięta
+read -r HOSTCPU_MEAN HOSTCPU_MAX < <(awk 'NR>3 && NF>=15 && $15 ~ /^[0-9]+$/ {b=100-$15; s+=b; n++; if (b>m) m=b}
+  END {if (n) printf "%.1f %d\n", s/n, m; else print "null null"}' "${OUT}_hostcpu.txt")
 
 # 9-10: metadane i flagi zdarzeń (OOM, restart)
 OOM=$($DC --profile "$IFACE" ps -q "app-${IFACE}" | xargs -r docker inspect -f '{{.State.OOMKilled}}' 2>/dev/null || echo unknown)
@@ -85,7 +101,8 @@ cat > "${OUT}_meta.json" <<JSON
  "flags":{"TLS":${TLS_ENABLED},"AUTH":${AUTH_ENABLED},"VALIDATION":${VALIDATION_ENABLED},"RATELIMIT":${RATELIMIT_ENABLED},"COMPLEXITY":${COMPLEXITY_ENABLED}},
  "params":{"WARMUP":"${WARMUP}","DURATION":"${DURATION}","COOLDOWN":"${COOLDOWN}","ATTACK_RATE":"${ATTACK_RATE:-}","LEGIT_RATE":"${LEGIT_RATE:-}","SIZE":"${SIZE:-}","VARIANT":"${VARIANT:-}","LEVEL":"${LEVEL:-}","LEGIT_ONLY":"${LEGIT_ONLY:-}","ATTACK_DUR":"${ATTACK_DUR:-}","RECOVER":"${RECOVER:-}","BG_RATE":"${BG_RATE:-}","BIG_RATE":"${BIG_RATE:-}"},
  "commit":"$(git rev-parse HEAD 2>/dev/null || echo none)","dirty":"$(git status --porcelain 2>/dev/null | wc -l)",
- "monitoring":${MONITORING},"host":"$(hostname)","start":"${START}","end":"${END}","k6_exit":${K6RC},"oom_killed":"${OOM}","restart_count":"${RESTARTS}"}
+ "monitoring":${MONITORING},"host":"$(hostname)","start":"${START}","end":"${END}","k6_exit":${K6RC},"oom_killed":"${OOM}","restart_count":"${RESTARTS}",
+ "host_cpu_busy_mean":${HOSTCPU_MEAN},"host_cpu_busy_max":${HOSTCPU_MAX}}
 JSON
 
 $DC --profile "$IFACE" down >/dev/null 2>&1 || true
