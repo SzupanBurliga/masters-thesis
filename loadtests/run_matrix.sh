@@ -57,7 +57,8 @@ case "$WHICH" in
         bg=$(( $(sat "$i" O1) * 30 / 100 ))
         v=$variant; [ "$v" = json ] && v=depth
         for cfg in C0 C3 C5; do for r in $(seq 1 "$REPS_D"); do
-          VARIANT=$v LEVEL=$lvl BG_RATE=$bg TAG="${variant}${lvl}" run seria_d "$i" O1 "$cfg" "$r" "$bg"
+          atk=10; [ "$i" = graphql ] && atk=${ATTACK_RATE_D_GRAPHQL:-10}  # P2: siła ataku GraphQL z rates.env
+          VARIANT=$v LEVEL=$lvl BG_RATE=$bg ATTACK_RATE=$atk TAG="${variant}${lvl}" run seria_d "$i" O1 "$cfg" "$r" "$bg"
         done; done
       done
     done; done ;;

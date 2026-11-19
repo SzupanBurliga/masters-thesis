@@ -8,7 +8,7 @@
 # - błąd przebiegu nie przerywa całości (wyjątek: kod 3 = błąd przygotowania, np. wygasłe tokeny -> stop);
 # - każdy blok ma osobny log results/blocks_logs/<blok>.log i status <blok>.tsv (dopisywane przy każdej sesji).
 #
-# Bloki: smoke, pilot_bcd, variability, variability_extra, pilot_a2_rep2, a1_tls
+# Bloki: smoke, smoke2, pilot_bcd, pilot_bcd2, d_rate_cal, variability, variability_extra, pilot_a2_rep2, a1_tls
 # Przykład: loadtests/run_blocks.sh --max-hours 2.5 --pause 15 pilot_bcd
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -72,6 +72,47 @@ define_block() {
             "$(exp_cmd pilot_bcd seria_d "$i" O1 "$c" 1 "$(pct "$(sat "$i" O1)" 30)" $T TAG="${var}${lvl}" VARIANT="$v" LEVEL="$lvl" BG_RATE="$(pct "$(sat "$i" O1)" 30)")"
         done
       done ;;
+
+    smoke2) # test dymny poprawek P1-P4 (19.11): po 1 krótkim przebiegu C i D
+      local T="WARMUP=10s DURATION=20s COOLDOWN=5s"
+      add results/blocks_smoke2/seria_d/graphql_limit50_C0_1 $((35 + OVERHEAD_S)) "$(exp_cmd blocks_smoke2 seria_d graphql O1 C0 1 100 $T TAG=limit50 VARIANT=limit LEVEL=50 BG_RATE=100)"
+      add results/blocks_smoke2/seria_c/rest_s102400_C5_1 $((35 + OVERHEAD_S)) "$(exp_cmd blocks_smoke2 seria_c rest O1 C5 1 100 $T TAG=s102400 SIZE=102400 BG_RATE=100)"
+      add results/blocks_smoke2/seria_c/grpc_s102400_C5_1 $((35 + OVERHEAD_S)) "$(exp_cmd blocks_smoke2 seria_c grpc O1 C5 1 100 $T TAG=s102400 SIZE=102400 BG_RATE=100)"
+      add results/blocks_smoke2/seria_d/rest_array2000_C5_1 $((35 + OVERHEAD_S)) "$(exp_cmd blocks_smoke2 seria_d rest O1 C5 1 100 $T TAG=array2000 VARIANT=array LEVEL=2000 BG_RATE=100)"
+      add results/blocks_smoke2/seria_d/grpc_array2000_C5_1 $((35 + OVERHEAD_S)) "$(exp_cmd blocks_smoke2 seria_d grpc O1 C5 1 100 $T TAG=array2000 VARIANT=array LEVEL=2000 BG_RATE=100)" ;;
+
+    pilot_bcd2) # ponowny pilotaż B, C, D po poprawkach P1-P4 (osobny katalog, żeby nie pominąć jako gotowe)
+      local i c
+      for i in rest graphql grpc; do
+        for c in C0 C4; do
+          add "results/pilot_bcd2/seria_b/${i}_O1_atk1000_${c}_1" $((30 + 60 + 30 + OVERHEAD_S)) \
+            "$(exp_cmd pilot_bcd2 seria_b "$i" O1 "$c" 1 "$(pct "$(sat "$i" O1)" 30)" TAG=O1_atk1000 LEGIT_RATE="$(pct "$(sat "$i" O1)" 30)" ATTACK_RATE=1000 LEGIT_ONLY=30 ATTACK_DUR=60 RECOVER=30)"
+        done
+      done
+      local T="WARMUP=20s DURATION=60s COOLDOWN=10s"
+      for i in rest graphql grpc; do
+        for c in C0 C5; do
+          add "results/pilot_bcd2/seria_c/${i}_s102400_${c}_1" $((90 + OVERHEAD_S)) \
+            "$(exp_cmd pilot_bcd2 seria_c "$i" O1 "$c" 1 "$(pct "$(sat "$i" O1)" 30)" $T TAG=s102400 SIZE=102400 BG_RATE="$(pct "$(sat "$i" O1)" 30)")"
+        done
+      done
+      local spec v lvl var atk
+      for spec in graphql:depth:10 graphql:alias:50 graphql:limit:50 rest:json:64 rest:array:2000 grpc:array:2000; do
+        IFS=: read -r i var lvl <<<"$spec"; v=$var; [ "$v" = json ] && v=depth
+        atk=10; [ "$i" = graphql ] && atk=${ATTACK_RATE_D_GRAPHQL:-10}
+        for c in C0 C5; do
+          add "results/pilot_bcd2/seria_d/${i}_${var}${lvl}_${c}_1" $((90 + OVERHEAD_S)) \
+            "$(exp_cmd pilot_bcd2 seria_d "$i" O1 "$c" 1 "$(pct "$(sat "$i" O1)" 30)" $T TAG="${var}${lvl}" VARIANT="$v" LEVEL="$lvl" ATTACK_RATE="$atk" BG_RATE="$(pct "$(sat "$i" O1)" 30)")"
+        done
+      done ;;
+
+    d_rate_cal) # P2: siła ataku GraphQL w serii D; C0, najwyższy poziom każdego wariantu, 10/50/100/200 zapytań/s
+      local var lvl r T="WARMUP=20s DURATION=60s COOLDOWN=10s" bg; bg=$(pct "$SAT_GRAPHQL_O1" 30)
+      for r in 10 50 100 200; do for spec in depth:10 alias:50 limit:50; do
+        IFS=: read -r var lvl <<<"$spec"
+        add "results/pilot_drate/seria_d/graphql_${var}${lvl}_r${r}_C0_1" $((90 + OVERHEAD_S)) \
+          "$(exp_cmd pilot_drate seria_d graphql O1 C0 1 "$bg" $T TAG="${var}${lvl}_r${r}" VARIANT="$var" LEVEL="$lvl" ATTACK_RATE="$r" BG_RATE="$bg")"
+      done; done ;;
 
     variability|variability_extra) # zmienność: REST O1 C0, stały ruch 70% SAT, jak pilotaż A2
       local r reps; [ "$1" = variability ] && reps="1 2 3 4 5" || reps="6 7 8 9 10"

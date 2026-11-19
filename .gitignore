@@ -41,3 +41,4 @@ results/pilot_*/**
 results/blocks_smoke/
 results/blocks_logs/*.log
 results/blocks_logs/*_console.txt
+results/blocks_smoke2/
