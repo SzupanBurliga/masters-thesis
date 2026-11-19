@@ -24,3 +24,8 @@ terraform.tfvars
 terminologia.md
 LOG.md
 loadtests/tokens.json
+# pilotaż: surowe dane ignorowane, wersjonowane tylko kolejność, stan hosta i podsumowania
+results/pilot/**
+!results/pilot/*.txt
+!results/pilot/*.csv
+!results/pilot/*.md
