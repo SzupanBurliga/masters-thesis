@@ -78,7 +78,8 @@ func TestCalibration(t *testing.T) {
 		return l.cost(qd.Operations[0].SelectionSet, qd.Fragments, nil, 0)
 	}
 	limitQ := func(n int) string {
-		return fmt.Sprintf(`{ user(id:1){ orders(limit:%d){ id user{ orders(limit:%d){ id items{ quantity product{ id name } } } } } } }`, n, n)
+		// jak bigLimitQuery w loadtests/lib/common.js (seria D, wariant limit)
+		return fmt.Sprintf(`{ orders(limit:%d){ id user{ orders(limit:%d){ id items{ quantity product{ id name } } } } } }`, n, n)
 	}
 	aliasQ := func(n int) string {
 		q := "{"

@@ -82,10 +82,13 @@ export function aliasQuery(n) {
   return `query($id: ID!){ ${parts.join(" ")} }`;
 }
 
-// Zapytanie o kosztowej strukturze rosnącej z `limit` (cykl Order.user -> User.orders).
-// Koszt (model z complexity.go): L=10 -> 321, L=25 -> 1926, L=50 -> 7601 (serwer ucina limit do 50).
+// Zapytanie, którego realna praca rośnie z `limit`: od listy zamówień (Query.orders zwraca L zamówień), przez
+// Order.user, do User.orders(limit:L). Każdy użytkownik ma w seedzie dokładnie 5 zamówień, więc zagnieżdżenie od
+// User.orders (jak wcześniej) dawało zawsze 5 wyników niezależnie od L. Tu: L zamówień -> L użytkowników -> 5L zamówień
+// -> 20L pozycji. Koszt w modelu complexity.go: patrz TestCalibration (app/internal/graphql/complexity_test.go).
+// Bez zmiennych: seria_d wysyła variables {id}, a zadeklarowana nieużyta zmienna jest błędem walidacji GraphQL.
 export function bigLimitQuery(limit) {
-  return `query($id: ID!){ user(id:$id){ orders(limit:${limit}){ id user{ orders(limit:${limit}){ id items{ quantity product{ id name } } } } } } }`;
+  return `query{ orders(limit:${limit}){ id user{ orders(limit:${limit}){ id items{ quantity product{ id name } } } } } }`;
 }
 
 // ---- seria C: ten sam ładunek logiczny (zamówienie z N pozycjami) w każdym interfejsie ----
