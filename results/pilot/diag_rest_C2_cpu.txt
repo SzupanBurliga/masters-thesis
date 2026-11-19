@@ -1,0 +1,12 @@
+14:18:29 host_busy=17.2 k6_ps= infra-app-rest-1=0.05% infra-postgres-1=95.64% 
+14:18:36 host_busy=98.2 k6_ps= 439 infra-app-rest-1=102.61% infra-postgres-1=68.42% 
+14:18:43 host_busy=99.1 k6_ps= 469 infra-app-rest-1=77.06% infra-postgres-1=73.54% 
+14:18:50 host_busy=100 k6_ps= 486 infra-app-rest-1=99.14% infra-postgres-1=68.71% 
+14:18:56 host_busy=98.8 k6_ps= 493 infra-app-rest-1=85.65% infra-postgres-1=62.44% 
+14:19:03 host_busy=99 k6_ps= 497 infra-app-rest-1=88.92% infra-postgres-1=73.58% 
+14:19:10 host_busy=91.8 k6_ps= 499 infra-app-rest-1=82.87% infra-postgres-1=46.51% 
+14:19:17 host_busy=100 k6_ps= 501 infra-app-rest-1=100.85% infra-postgres-1=61.17% 
+14:19:23 host_busy=98 k6_ps= 501 infra-app-rest-1=107.50% infra-postgres-1=63.13% 
+14:19:30 host_busy=95.7 k6_ps= 501 infra-app-rest-1=88.01% infra-postgres-1=42.30% 
+14:19:37 host_busy=96.9 k6_ps= 501 infra-app-rest-1=110.94% infra-postgres-1=65.39% 
+14:19:44 host_busy=45.5 k6_ps= 501 infra-app-rest-1=0.00% infra-postgres-1=0.00% 
