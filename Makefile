@@ -1,6 +1,8 @@
 .PHONY: monitoring monitoring-down up down test fmt build seed proto gql certs tokens psql
 
 COMPOSE = docker compose -f infra/docker-compose.yml
+# ważność tokenów JWT (cmd/tokens ma domyślnie 24h, a run_experiment.sh wymaga >= 48h zapasu)
+TOKENS_TTL ?= 2160h
 
 up:
 	$(COMPOSE) up -d postgres
@@ -27,7 +29,7 @@ certs:
 	infra/certs/gen.sh
 
 tokens:
-	cd app && go run ./cmd/tokens -n 100 -out ../loadtests/tokens.json
+	cd app && go run ./cmd/tokens -n 100 -ttl $(TOKENS_TTL) -out ../loadtests/tokens.json
 
 fmt:
 	cd app && gofmt -l -w .
