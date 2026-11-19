@@ -40,3 +40,4 @@ results/pilot_*/**
 !results/pilot_*/*.txt
 results/blocks_smoke/
 results/blocks_logs/*.log
+results/blocks_logs/*_console.txt
