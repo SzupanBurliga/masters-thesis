@@ -1,11 +1,12 @@
-"""Punkt nasycenia C0 z przebiegów rampowych (A1): python analysis/saturation.py <env> <seria> [tag_glob]
+"""Punkt nasycenia z przebiegów rampowych (A1): python analysis/saturation.py <env> <seria> [tag_glob] [konfiguracja=C0]
 
 Dla każdego przebiegu liczy w oknach 10 s: RPS, odsetek poprawnych odpowiedzi, p50 i p95 (z poprawnych).
 Okno uznajemy za "złe", gdy poprawnych < 99% albo p50 > max(5 * baza_p50, 10 ms); baza = mediana p50 z okien 2-4.
 Kryterium po medianie, bo pojedyncze skoki p95 (ogon) nie oznaczają nasycenia; kolejka = trwały wzrost p50.
 Punkt nasycenia = RPS pierwszego z NSUS kolejnych złych okien; brak = "nie nasycony" (sufit rampy przy zdrowej medianie).
 Okna po przerwie > 60 s (zbłąkane znaczniki czasu) są odrzucane.
-Wypisuje tabele i zapisuje <results>/<env>/<seria>_saturation_<tag>.csv (okna) oraz _summary.csv (przebiegi).
+Wypisuje tabele i zapisuje <results>/<env>/<seria>_saturation_<tag>_windows.csv (okna) oraz _summary.csv (przebiegi);
+dla konfiguracji innej niż C0 nazwy mają dopisek _<konfiguracja> (np. ..._O1_ramp_C2_summary.csv).
 """
 import sys
 from pathlib import Path
@@ -54,9 +55,11 @@ def first_sustained(bad):
 def main():
     env, seria = sys.argv[1], sys.argv[2]
     tag = sys.argv[3] if len(sys.argv) > 3 else "ramp"
+    cfg = sys.argv[4] if len(sys.argv) > 4 else "C0"
+    suffix = "" if cfg == "C0" else f"_{cfg}"
     d = RESULTS / env / seria
     summ, allw = [], []
-    for f in sorted(d.glob(f"*_{tag}_C0_*_points.csv.gz")):
+    for f in sorted(d.glob(f"*_{tag}_{cfg}_*_points.csv.gz")):
         iface, op, *_ , rep = f.name.replace("_points.csv.gz", "").split("_")
         g = windows(f)
         base = g.p50.iloc[1:4].median()
@@ -69,7 +72,7 @@ def main():
         hostcpu = np.nan
         if host.exists():
             hostcpu = host_cpu_max(host)
-        summ.append(dict(iface=iface, op=op, rep=rep, base_p50_ms=round(base, 2), p50_limit_ms=round(lim, 1),
+        summ.append(dict(iface=iface, op=op, config=cfg, rep=rep, base_p50_ms=round(base, 2), p50_limit_ms=round(lim, 1),
                          max_healthy_rps=round(good.rps.max()), sat_rps=round(first_bad) if i is not None else np.nan, first_bad_rps=first_bad,
                          peak_rps=round(g.rps.max()), min_ok_frac=round(g.ok_frac.min(), 4),
                          host_cpu_max_pct=hostcpu))
@@ -78,8 +81,8 @@ def main():
     s = pd.DataFrame(summ)
     print(s.to_string(index=False))
     print(s.groupby(["iface", "op"])[["max_healthy_rps", "sat_rps", "peak_rps"]].mean().round())
-    s.to_csv(RESULTS / env / f"{seria}_saturation_{tag}_summary.csv", index=False)
-    pd.concat(allw).to_csv(RESULTS / env / f"{seria}_saturation_{tag}_windows.csv", index=False)
+    s.to_csv(RESULTS / env / f"{seria}_saturation_{tag}{suffix}_summary.csv", index=False)
+    pd.concat(allw).to_csv(RESULTS / env / f"{seria}_saturation_{tag}{suffix}_windows.csv", index=False)
 
 
 if __name__ == "__main__":
