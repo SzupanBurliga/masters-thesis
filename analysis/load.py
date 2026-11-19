@@ -79,23 +79,31 @@ def _window(pts, t0, t1, scenario=None):
 
 
 def _stats(w, prefix):
+    """<prefix>_pXX: tylko poprawne odpowiedzi (zasada 11.3 planu); <prefix>_all_pXX: wszystkie odpowiedzi, także
+    odrzucone przez mechanizm (np. 413/429/422) — pokazuje, jak szybko mechanizm odrzuca (P6, pilotaż 19.11)."""
     good = w[w["ok"]]["ms"]
     row = {f"{prefix}_n": len(w), f"{prefix}_ok_share": float(w["ok"].mean()) if len(w) else np.nan}
     for q in (50, 95, 99):
         row[f"{prefix}_p{q}"] = float(np.percentile(good, q)) if len(good) else np.nan
+        row[f"{prefix}_all_p{q}"] = float(np.percentile(w["ms"], q)) if len(w) else np.nan
     return row
 
 
-def recovery_time(pts, scenario, t_end_attack, baseline_p95, step=10, factor=1.10):
-    """Czas (s) od końca ataku do pierwszego okna `step` s, w którym p95 <= baza * factor. NaN gdy nigdy."""
+RECOVERY_FLOOR_MS = 1.0  # próg szumu: przy bazie < 1 ms samo "+10%" jest węższe niż zmienność między oknami (P5)
+
+
+def recovery_time(pts, scenario, t_end_attack, baseline_p95, step=10, factor=1.10, floor_ms=RECOVERY_FLOOR_MS):
+    """Czas (s) od końca ataku do pierwszego okna `step` s, w którym p95 <= max(baza * factor, baza + floor_ms).
+    NaN gdy nigdy (np. za krótkie wystygnięcie)."""
     if not np.isfinite(baseline_p95):
         return np.nan
+    limit = max(baseline_p95 * factor, baseline_p95 + floor_ms)
     t = t_end_attack
     tmax = pts["t"].max()
     while t < tmax:
         w = _window(pts, t, t + step, scenario)
         good = w[w["ok"]]["ms"]
-        if len(good) and np.percentile(good, 95) <= baseline_p95 * factor:
+        if len(good) and np.percentile(good, 95) <= limit:
             return t - t_end_attack
         t += step
     return np.nan
@@ -115,8 +123,9 @@ def point_metrics(pts, meta):
         att_end = base_end + _secs(params.get("ATTACK_DUR"), B_DEFAULTS["ATTACK_DUR"])
     else:  # C, D: tło od początku, atak w fazie pomiarowej
         base_end, att_end = W, W + D
-    # pierwsze 20% bazy odrzucamy jako rozgrzewkę legalnego ruchu (B); w C/D baza = rozgrzewka właściwa
-    base_start = 0.25 * base_end if series == "seria_b" else 0
+    # B: pierwsze 25% okna samych legalnych odrzucamy (start połączeń); C/D: baza = druga połowa rozgrzewki (P7),
+    # bo początek rozgrzewki obejmuje nawiązywanie połączeń (np. gRPC C5 w pilotażu: base_p95 35 ms)
+    base_start = 0.25 * base_end if series == "seria_b" else 0.5 * base_end
     row.update(_stats(_window(pts, base_start, base_end, "legit"), "base"))
     row.update(_stats(_window(pts, base_end, att_end, "legit"), "attack"))
     row.update(_stats(_window(pts, att_end, pts["t"].max() + 1, "legit"), "recover"))
@@ -150,6 +159,10 @@ def load_series(results_dir, env, series):
         row["http_failed_rate"] = (metrics.get("http_req_failed") or {}).get("value")
         row["checks_rate"] = (metrics.get("checks") or {}).get("value")
         row["iterations"] = (metrics.get("iterations") or {}).get("count")
+        # rozmiar ładunku napastnika (seria C, D): bajty na drucie (HTTP: treść, gRPC: zakodowana wiadomość) i pozycje
+        pb, pi = metrics.get("attack_payload_bytes") or {}, metrics.get("attack_payload_items") or {}
+        row["payload_bytes_min"], row["payload_bytes_max"] = pb.get("min"), pb.get("max")
+        row["payload_items"] = pi.get("max")
         pts = load_points(base + "_points.csv.gz")
         if pts is not None:
             row.update(point_metrics(pts, meta))
