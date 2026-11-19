@@ -115,7 +115,6 @@ echo "start $(fmt_t "$T0"), limit ${MAX_HOURS} h (do $(fmt_t "$DEADLINE")), pauz
 for B in "${BLOCKS[@]}"; do
   define_block "$B" || exit 2
   LOG=$LOGDIR/$B.log; ST=$LOGDIR/$B.tsv
-  [ -s "$ST" ] || printf "czas\tprzebieg\tstatus\tkod\tczas_s\tszac_s\n" > "$ST"
   total=0; todo=0
   for k in "${!RUN_OUT[@]}"; do done_run "${RUN_OUT[$k]}" || { total=$((total + RUN_EST[k])); todo=$((todo + 1)); }; done
   msg="== blok $B: ${#RUN_OUT[@]} przebiegów, do zrobienia $todo, szacunek $((total / 60)) min"
@@ -127,6 +126,7 @@ for B in "${BLOCKS[@]}"; do
     done
     continue
   fi
+  [ -s "$ST" ] || printf "czas\tprzebieg\tstatus\tkod\tczas_s\tszac_s\n" > "$ST"
   echo "$(date '+%F %T') sesja start (limit do $(fmt_t "$DEADLINE")) $msg" >> "$LOG"
   for k in "${!RUN_OUT[@]}"; do
     [ "$STOP" = 1 ] && break 2
