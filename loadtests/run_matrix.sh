@@ -47,7 +47,9 @@ case "$WHICH" in
       done; done
     done; done ;;
   seria_d) # złożone ładunki: warianty wg interfejsu, 3 poziomy, C0/C3/C5
-    declare -A VARS=( [graphql]="depth:3,6,10 alias:5,10,50 limit:10,25,50" [rest]="json:4,8,64 array:100,1000,10000" [grpc]="array:100,1000,10000" )
+    # tablica: najwyższy poziom 2000 (REST JSON max ~64 030 B < 64 KiB), żeby w C5 odrzucał limit złożoności (długość
+    # tablicy), a nie limit rozmiaru z C3; przy 10 000 (317 808 B) oba dawały to samo (pilotaż 19.11, P4)
+    declare -A VARS=( [graphql]="depth:3,6,10 alias:5,10,50 limit:10,25,50" [rest]="json:4,8,64 array:100,1000,2000" [grpc]="array:100,1000,2000" )
     for i in "${IFACES[@]}"; do for spec in ${VARS[$i]}; do
       variant=${spec%%:*}; levels=${spec#*:}
       for lvl in ${levels//,/ }; do
