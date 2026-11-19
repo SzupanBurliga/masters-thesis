@@ -29,3 +29,7 @@ results/pilot/**
 !results/pilot/*.txt
 !results/pilot/*.csv
 !results/pilot/*.md
+.terraform/
+*.tfplan
+infra/aws/tfplan
+.terraform.lock.hcl

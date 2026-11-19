@@ -1,0 +1,9 @@
+# Skopiuj do terraform.tfvars (plik w .gitignore). my_ip_cidr ustawia start.sh.
+owner_email         = "twoj-adres@example.com"
+region              = "eu-central-1"
+availability_zone   = "eu-central-1a"
+server_type         = "c7i.2xlarge"
+generator_type      = "c7i.4xlarge"
+repo_ref            = "v1.0-experiments"
+budget_usd          = 150
+ssh_public_key_path = "~/.ssh/id_ed25519.pub"
