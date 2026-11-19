@@ -32,6 +32,17 @@ OUT="${OUTDIR}/${IFACE}_${TAG}_${CFG}_${REP}"
 
 [ -f infra/certs/server.crt ] || make certs >/dev/null
 [ -f loadtests/tokens.json ] || make tokens >/dev/null
+# Ważność tokenów JWT: wygasłe tokeny dają same 401 w C2-C5 przy k6 exit 0, więc przerywamy z wyprzedzeniem.
+TOKEN_MIN_LEFT=${TOKEN_MIN_LEFT:-172800}  # 48 h w sekundach
+TOKEN_EXP=$(jq -r '.legit[0] | split(".")[1] | gsub("-";"+") | gsub("_";"/") | @base64d | fromjson | .exp' loadtests/tokens.json 2>/dev/null || true)
+if ! [[ "$TOKEN_EXP" =~ ^[0-9]+$ ]]; then
+  echo "BŁĄD: nie można odczytać exp z loadtests/tokens.json (uszkodzony plik?). Wygeneruj tokeny: make tokens" >&2; exit 3
+fi
+if (( TOKEN_EXP - $(date +%s) < TOKEN_MIN_LEFT )); then
+  echo "BŁĄD: tokeny JWT w loadtests/tokens.json wygasają $(date -d "@$TOKEN_EXP" '+%F %T %Z') (zostało mniej niż $((TOKEN_MIN_LEFT/3600)) h)." >&2
+  echo "      Wygeneruj nowe: make tokens TOKENS_TTL=<np. 2160h>  (z tym samym JWT_SECRET co serwer)" >&2
+  exit 3
+fi
 mkdir -p bin && (cd app && go build -o ../bin/seed ./cmd/seed)
 
 MONITORING=${MONITORING:-0}
