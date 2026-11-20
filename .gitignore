@@ -4,6 +4,7 @@ results/aws/**
 results/local_*/**
 !results/local_*/*.md
 !results/local_*/config.txt
+!results/local_*/config_*.txt
 !results/local_*/*_summary.csv
 !results/local_*/*_windows.csv
 !results/**/.gitkeep

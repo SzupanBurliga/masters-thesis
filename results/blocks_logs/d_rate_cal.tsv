@@ -1,0 +1,13 @@
+czas	przebieg	status	kod	czas_s	szac_s
+2026-11-20T00:25:01+01:00	pilot_drate/seria_d/graphql_depth10_r10_C0_1	OK	0	98	120
+2026-11-20T00:27:41+01:00	pilot_drate/seria_d/graphql_alias50_r10_C0_1	OK	0	100	120
+2026-11-20T00:30:20+01:00	pilot_drate/seria_d/graphql_limit50_r10_C0_1	OK	0	99	120
+2026-11-20T00:32:59+01:00	pilot_drate/seria_d/graphql_depth10_r50_C0_1	OK	0	99	120
+2026-11-20T00:35:38+01:00	pilot_drate/seria_d/graphql_alias50_r50_C0_1	OK	0	99	120
+2026-11-20T00:38:18+01:00	pilot_drate/seria_d/graphql_limit50_r50_C0_1	OK	0	100	120
+2026-11-20T00:40:57+01:00	pilot_drate/seria_d/graphql_depth10_r100_C0_1	OK	0	99	120
+2026-11-20T00:43:36+01:00	pilot_drate/seria_d/graphql_alias50_r100_C0_1	OK	0	99	120
+2026-11-20T00:46:15+01:00	pilot_drate/seria_d/graphql_limit50_r100_C0_1	OK	0	99	120
+2026-11-20T00:48:54+01:00	pilot_drate/seria_d/graphql_depth10_r200_C0_1	OK	0	99	120
+2026-11-20T00:51:34+01:00	pilot_drate/seria_d/graphql_alias50_r200_C0_1	OK	0	100	120
+2026-11-20T00:54:13+01:00	pilot_drate/seria_d/graphql_limit50_r200_C0_1	OK	0	99	120

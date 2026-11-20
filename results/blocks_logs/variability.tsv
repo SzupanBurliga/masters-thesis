@@ -1,0 +1,6 @@
+czas	przebieg	status	kod	czas_s	szac_s
+2026-11-19T23:15:30+01:00	pilot_var/seria_a/rest_O1_C0_1	OK	0	193	210
+2026-11-19T23:19:40+01:00	pilot_var/seria_a/rest_O1_C0_2	OK	0	190	210
+2026-11-19T23:23:50+01:00	pilot_var/seria_a/rest_O1_C0_3	OK	0	190	210
+2026-11-19T23:28:01+01:00	pilot_var/seria_a/rest_O1_C0_4	OK	0	190	210
+2026-11-19T23:32:11+01:00	pilot_var/seria_a/rest_O1_C0_5	OK	0	190	210

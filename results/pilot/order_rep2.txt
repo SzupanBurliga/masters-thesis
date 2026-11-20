@@ -1,0 +1,13 @@
+# seed=20261120; kolejność: nr iface cfg
+1 rest C4
+2 grpc C5
+3 rest C0
+4 rest C5
+5 grpc C4
+6 rest C2
+7 graphql C2
+8 graphql C0
+9 graphql C4
+10 grpc C0
+11 grpc C2
+12 graphql C5
