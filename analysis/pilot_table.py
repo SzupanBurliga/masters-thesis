@@ -1,4 +1,4 @@
-"""Tabela pilotażu A2: RPS, p50/p95/p99, błędy, CPU/RAM aplikacji w fazie pomiaru, narzut względem C0.
+"""Tabela pilotażu A2 (także wiele powtórzeń; narzut względem C0 tego samego powtórzenia): RPS, p50/p95/p99, błędy, CPU/RAM aplikacji w fazie pomiaru, narzut względem C0.
 
 Użycie: ~/venv-thesis/bin/python analysis/pilot_table.py [env=pilot]
 Wynik: results/<env>/pilot_summary.csv i results/<env>/pilot_summary.md
@@ -51,28 +51,30 @@ def main(env="pilot"):
         pts = load_points(base + "_points.csv.gz")
         st = _stats(_window(pts, W, W + D, "measure"), "m")
         start = datetime.fromisoformat(meta["start"]).timestamp()
-        row = {"iface": meta["iface"], "config": meta["config"], "rate": meta["rate"], "k6_exit": meta["k6_exit"],
+        row = {"iface": meta["iface"], "config": meta["config"], "rep": meta["rep"], "rate": meta["rate"], "k6_exit": meta["k6_exit"],
+               "host_cpu_mean": meta.get("host_cpu_busy_mean"), "host_cpu_max": meta.get("host_cpu_busy_max"),
                "oom": meta["oom_killed"], "rps": st["m_n"] / D, "p50_ms": st["m_p50"], "p95_ms": st["m_p95"],
                "p99_ms": st["m_p99"], "err_pct": (1 - st["m_ok_share"]) * 100, "n": st["m_n"]}
         row.update(resources_window(Path(base + "_resources.csv"), start + W, start + W + D))
         rows.append(row)
     df = pd.DataFrame(rows)
+    # narzut względem C0 tego samego interfejsu i tego samego powtórzenia
     for col, out in (("p95_ms", "p95_vs_C0_pct"), ("cpu_mean", "cpu_vs_C0_pct")):
-        c0 = df[df["config"] == "C0"].set_index("iface")[col]
-        df[out] = df.apply(lambda r: (r[col] / c0.get(r["iface"], np.nan) - 1) * 100, axis=1)
+        c0 = df[df["config"] == "C0"].set_index(["iface", "rep"])[col]
+        df[out] = df.apply(lambda r: (r[col] / c0.get((r["iface"], r["rep"]), np.nan) - 1) * 100, axis=1)
     df["iface"] = pd.Categorical(df["iface"], IFACES, ordered=True)
     df["config"] = pd.Categorical(df["config"], CFGS, ordered=True)
-    df = df.sort_values(["iface", "config"]).reset_index(drop=True)
+    df = df.sort_values(["iface", "config", "rep"]).reset_index(drop=True)
     out = Path(RESULTS, env)
     df.to_csv(out / "pilot_summary.csv", index=False)
 
     fmt = lambda v, d=2: "—" if pd.isna(v) else f"{v:.{d}f}"  # noqa: E731
-    lines = ["| interfejs | konf. | zadany RPS | osiągnięty RPS | p50 [ms] | p95 [ms] | p99 [ms] | błędy [%] | CPU śr. [%] | CPU max [%] | RAM śr. [MiB] | RAM max [MiB] | p95 vs C0 [%] | CPU vs C0 [%] |",
-             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    lines = ["| interfejs | konf. | powt. | zadany RPS | osiągnięty RPS | p50 [ms] | p95 [ms] | p99 [ms] | błędy [%] | CPU śr. [%] | CPU max [%] | RAM śr. [MiB] | RAM max [MiB] | p95 vs C0 [%] | CPU vs C0 [%] | CPU hosta śr./max [%] |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for _, r in df.iterrows():
-        lines.append(f"| {r.iface} | {r.config} | {r.rate} | {fmt(r.rps, 1)} | {fmt(r.p50_ms)} | {fmt(r.p95_ms)} | {fmt(r.p99_ms)} | "
+        lines.append(f"| {r.iface} | {r.config} | {r.rep} | {r.rate} | {fmt(r.rps, 1)} | {fmt(r.p50_ms)} | {fmt(r.p95_ms)} | {fmt(r.p99_ms)} | "
                      f"{fmt(r.err_pct, 3)} | {fmt(r.cpu_mean, 1)} | {fmt(r.cpu_max, 1)} | {fmt(r.mem_mean_mib, 1)} | {fmt(r.mem_max_mib, 1)} | "
-                     f"{'—' if r.config == 'C0' else fmt(r.p95_vs_C0_pct, 1)} | {'—' if r.config == 'C0' else fmt(r.cpu_vs_C0_pct, 1)} |")
+                     f"{'—' if r.config == 'C0' else fmt(r.p95_vs_C0_pct, 1)} | {'—' if r.config == 'C0' else fmt(r.cpu_vs_C0_pct, 1)} | {fmt(r.host_cpu_mean, 1)}/{fmt(r.host_cpu_max, 0)} |")
     (out / "pilot_summary.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
     print(f"\nPróbki docker stats w oknie pomiaru: min {df.res_samples.min()}, max {df.res_samples.max()}; "

@@ -31,13 +31,19 @@ def grouped(df, col, ylabel, title, fname, env, note=""):
     x = np.arange(len(CFGS))
     width = 0.26
     for k, (iface, label) in enumerate(IFACES):
-        vals = [df.loc[(df.iface == iface) & (df.config == c), col].squeeze() if ((df.iface == iface) & (df.config == c)).any() else np.nan
-                for c in CFGS]
+        # słupek = mediana z powtórzeń, wąsy = min-max (przy 1 powtórzeniu bez wąsów)
+        sel = [df.loc[(df.iface == iface) & (df.config == c), col].dropna() for c in CFGS]
+        vals = [v.median() if len(v) else np.nan for v in sel]
+        lo = [m - v.min() if len(v) > 1 else 0 for m, v in zip(vals, sel)]
+        hi = [v.max() - m if len(v) > 1 else 0 for m, v in zip(vals, sel)]
         xs = x + (k - 1) * width
         bars = ax.bar(xs, vals, width * 0.92, color=COLORS[iface], label=label, zorder=3)
-        for b, v in zip(bars, vals):
+        if any(lo) or any(hi):
+            ax.errorbar(xs, vals, yerr=[lo, hi], fmt="none", ecolor=INK2, elinewidth=1, capsize=3, zorder=4)
+        for b, v, h, l in zip(bars, vals, hi, lo):
             if np.isfinite(v):
-                ax.annotate(f"{v:+.1f}%", (b.get_x() + b.get_width() / 2, v), xytext=(0, 3 if v >= 0 else -3),
+                y = v + h if v >= 0 else v - l  # etykieta nad wąsem, żeby się nie nakładały
+                ax.annotate(f"{v:+.0f}%", (b.get_x() + b.get_width() / 2, y), xytext=(0, 3 if v >= 0 else -3),
                             textcoords="offset points", ha="center", va="bottom" if v >= 0 else "top", fontsize=8, color=INK2)
     ax.axhline(0, color=INK2, linewidth=1, zorder=4)
     ax.set_xticks(x, [CFG_LABEL[c] for c in CFGS], fontsize=9, color=INK)
@@ -51,7 +57,9 @@ def grouped(df, col, ylabel, title, fname, env, note=""):
     ax.tick_params(axis="x", length=0)
     ax.legend(frameon=False, ncol=3, loc="upper left", fontsize=9)
     ax.set_title(title, loc="left", fontsize=12, color=INK, pad=22)
-    ax.text(0, 1.02, f"pilotaż, 1 powtórzenie (env {env}, O1, 70% punktu nasycenia C0, pomiar 120 s, laptop) — wyniki orientacyjne",
+    nrep = int(df.groupby(["iface", "config"]).size().max())
+    reps_txt = "1 powtórzenie" if nrep == 1 else f"{nrep} powtórzenia (słupek = mediana, wąsy = min–max)"
+    ax.text(0, 1.02, f"pilotaż, {reps_txt}; O1, 70% SAT C0, pomiar 120 s, laptop; wyniki orientacyjne",
             transform=ax.transAxes, fontsize=8, color=INK2)
     if note:
         fig.text(0.01, 0.01, note, fontsize=7.5, color=INK2, ha="left", va="bottom", wrap=True)
@@ -66,9 +74,10 @@ def shortfall_note(df):
     low = df[df.rps < 0.95 * df.rate]
     if low.empty:
         return ""
-    parts = [f"{r.iface} {r.config} {r.rps:.0f}/{r.rate}" for r in low.itertuples()]
-    return ("UWAGA: osiągnięty < 95% zadanego RPS w: " + ", ".join(parts) + ". Host (k6 + serwer na jednym laptopie) "
-            "był nasycony przy TLS, więc te słupki mierzą ograniczenie generatora, a nie samego mechanizmu.")
+    parts = [f"{i} {c} " + ", ".join(f"{v:.0f}" for v in g.rps) + f"/{g.rate.iloc[0]}"
+             for (i, c), g in low.groupby(["iface", "config"], sort=False)]
+    return ("UWAGA: osiągnięty < 95% zadanego RPS (osiągnięty/zadany): " + "; ".join(parts) + ". Host (k6 + serwer na jednym "
+            "laptopie) był nasycony przy TLS, więc te słupki mierzą ograniczenie generatora, a nie samego mechanizmu.")
 
 
 def main(env="pilot"):
